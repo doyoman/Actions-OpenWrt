@@ -143,7 +143,7 @@ jobs:
 
     - name: Organize files
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
@@ -159,7 +159,7 @@ jobs:
 
     - name: Generate release tag
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
@@ -174,38 +174,28 @@ jobs:
         body: OpenWrt E20C lede
         files: ${{ env.FIRMWARE }}/*
 
-    - name: Upload squashfs to Telegram
-      continue-on-error: true
-      run: |
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" -F chat_id=${{ secrets.TELEGRAM_ID }} -F document=@$(find ${{ env.FIRMWARE }} -name '*-squashfs-sysupgrade.img.gz') -F caption="e20c-squashfs" > /dev/null 2>&1
-
-    - name: Upload ext4 to Telegram
-      continue-on-error: true
-      run: |
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" -F chat_id=${{ secrets.TELEGRAM_ID }} -F document=@$(find ${{ env.FIRMWARE }} -name '*-ext4-sysupgrade.img.gz') -F caption="e20c-ext4" > /dev/null 2>&1
-
-    - name: Upload rootfs to Telegram
-      continue-on-error: true
-      run: |
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" -F chat_id=${{ secrets.TELEGRAM_ID }} -F document=@$(find ${{ env.FIRMWARE }} -name '*-rootfs.tar.gz') -F caption=$'e20c-rootfs\n'"OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }} 编译结束！" > /dev/null 2>&1
-          
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@main
+      if: steps.compile.outputs.status == 'success'
       with:
         retain_days: 0
-        keep_minimum_runs: 2
+        keep_minimum_runs: 5
 
     - name: Remove old Releases
       uses: dev-drprasad/delete-older-releases@master
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
-        keep_latest: 3
+        keep_latest: 5
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Send notification
-      continue-on-error: true
       run: |
-        curl https://api.day.app/${{ secrets.BARK_KEY }}/Actions-OpenWrt/OpenWrt_firmware${{ env.DEVICE_NAME }}编译结束！ > /dev/null 2>&1
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -F chat_id=${{ secrets.TELEGRAM_ID }} -F text="e20c-openwrt-lede 固件编译结束！" > /dev/null 2>&1
+        if [ "${{ steps.compile.outputs.status }}" == "success" ]; then
+          curl https://api.day.app/${{ secrets.BARK_KEY }}/Actions-OpenWrt/OpenWrt_firmware${{ env.DEVICE_NAME }}编译完成！ > /dev/null 2>&1
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -F chat_id=${{ secrets.TELEGRAM_ID }} -F text="e20c-openwrt-lede 固件编译完成！" > /dev/null 2>&1
+        else
+          curl https://api.day.app/${{ secrets.BARK_KEY }}/Actions-OpenWrt/OpenWrt_firmware${{ env.DEVICE_NAME }}编译失败！ > /dev/null 2>&1
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -F chat_id=${{ secrets.TELEGRAM_ID }} -F text="e20c-openwrt-lede 固件编译失败！" > /dev/null 2>&1
+        fi
