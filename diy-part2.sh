@@ -42,3 +42,9 @@ chmod +x files/usr/bin/AdGuardHome/AdGuardHome || true
 
 # 修改 ttyd root 直接登录
 sed -i 's#/bin/login#/bin/login -f root#g' feeds/packages/utils/ttyd/files/ttyd.config
+
+# 下载 q
+mkdir -p files/usr/bin || true
+Q=$(curl -sL https://api.github.com/repos/natesales/q/releases/latest | grep linux_${ARCH}.tar.gz | awk -F '"' '/browser_download_url/ {print $4}') || true
+wget -qO- $Q | tar -zxv -C files/usr/bin/ q || true
+chmod +x files/usr/bin/q || true
