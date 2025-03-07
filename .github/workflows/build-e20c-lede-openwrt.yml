@@ -79,19 +79,6 @@ jobs:
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
 
-    - name: Patch
-      run: |
-        if ls patchs/*.patch &>/dev/null; then
-          echo "发现补丁文件..."
-          mv patchs/*.patch openwrt
-          cd openwrt
-          for patch in *.patch; do
-            patch -p1 < "$patch"
-          done
-        else
-          echo "没有发现补丁文件"
-        fi
-
     - name: Load custom configuration
       run: |
         [ -e custom_packages ] && mv custom_packages openwrt/custom_packages
@@ -191,6 +178,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Send notification
+      if: always()
       run: |
         if [ "${{ steps.compile.outputs.status }}" == "success" ]; then
           curl https://api.day.app/${{ secrets.BARK_KEY }}/Actions-OpenWrt/OpenWrt_firmware${{ env.DEVICE_NAME }}编译完成！ > /dev/null 2>&1
